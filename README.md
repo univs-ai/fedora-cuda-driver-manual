@@ -1,5 +1,65 @@
-# fedora-cuda-driver-manual
-유니버스 플랫폼 백엔드
+# Fedora Server configuration manual (Fedora 40 기준)
+Fedora 서버 세팅 시 설치 요소와 Nvidia Driver를 인스톨하고, docker와 연결하는 부분을 설명한다.
+
+1. dnf update
+2. docker, docker-compose install
+3. dnf repository 확장 (rpm fusion 사용)
+4. nvidia driver 설치
+5. cuda toolkit 설치
+6. nvidia docker 설치
+7. 방화벽 해제
+8. IP 고정
+   
+### 1. dnf update
+Nvidia driver는 최신커널에서 동작하기 때문에, 설치시 update를 한다.
+```sh
+sudo dnf update
+```
+
+### 2. docker, docker-compose install
+```sh
+sudo dnf -y install dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+wget https://github.com/docker/compose/releases/download/v2.29.3/docker-compose-linux-x86_64
+sudo mv docker-compose-linux-x86_64 /usr/bin/docker-compose
+sudo chmod +x /usr/bin/docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
+```
+
+### 3. dnf update
+Nvidia driver는 최신커널에서 동작하기 때문에, 설치시 update를 한다.
+```sh
+sudo dnf -y install https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+sudo dnf -y install https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+sudo dnf -y install xorg-x11-drv-nvidia akmod-nvidia xorg-x11-drv-nvidia-cuda
+sudo akmods --force
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo | \
+  sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+sudo yum install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+curl -s -L https://nvidia.github.io/libnvidia-container/centos8/libnvidia-container.repo | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+sudo dnf install nvidia-docker2
+sudo nano /etc/nvidia-container-runtime/config.toml
+# 반드시 false로 한다.
+no-cgroups = false
+sudo nmcli con mod  ens9f0 ipv4.address 192.168.79.26/24 \
+		ipv4.gateway 192.168.79.1 \
+		ipv4.dns 192.168.79.1 \
+		ipv4.method manual connection.autoconnect yes
+sudo nmcli con mod  ens9f0 ipv4.address 192.168.79.24/16 \
+		ipv4.gateway 192.168.0.1 \
+		ipv4.dns 192.168.0.1 \
+		ipv4.method manual connection.autoconnect yes
+sudo docker tag cfcde21dc5df dockerhub.visionlabs.ru/luna/facestream:v.5.2.0
+```
+
+
+- - -
+## 예전 설치법 (Nvidia driver 수동 설치)
+
 
 유니버스플랫폼에서 GPU 구동을 위해 nvidia 드라이버를 설치해야 하는데, 정확하게 정리된 글이 없어서 여기에 남긴다.
 방법은 두 가지인데, 
